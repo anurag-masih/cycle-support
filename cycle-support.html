@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+<title>Cycle Support</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0F0F14;
+  --surface:#16161D;
+  --surface2:#1C1C25;
+  --border:#2A2A38;
+  --text:#F0EDE8;
+  --text2:#9A9AAA;
+  --text3:#5A5A6A;
+  --menstrual:#C2675A;
+  --menstrual-bg:#1A100F;
+  --menstrual-glow:rgba(194,103,90,0.25);
+  --follicular:#6A8FAF;
+  --follicular-bg:#0E1318;
+  --follicular-glow:rgba(106,143,175,0.25);
+  --ovulatory:#D4A84B;
+  --ovulatory-bg:#1A1508;
+  --ovulatory-glow:rgba(212,168,75,0.25);
+  --luteal:#8B7BAB;
+  --luteal-bg:#120F1A;
+  --luteal-glow:rgba(139,123,171,0.25);
+  --phase-color:var(--luteal);
+  --phase-bg:var(--luteal-bg);
+  --phase-glow:var(--luteal-glow);
+  --radius:16px;
+  --radius-sm:10px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden}
+#app{display:flex;flex-direction:column;height:100vh;max-width:480px;margin:0 auto;position:relative}
+
+/* NAV */
+nav{display:flex;background:var(--surface);border-top:1px solid var(--border);padding:10px 0 env(safe-area-inset-bottom,10px);flex-shrink:0;z-index:10}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;cursor:pointer;border:none;background:none;color:var(--text3);transition:color .2s;font-family:'Inter',sans-serif}
+.nav-btn.active{color:var(--phase-color)}
+.nav-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.nav-label{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+
+/* SCREENS */
+.screen{flex:1;overflow-y:auto;display:none;flex-direction:column;-webkit-overflow-scrolling:touch}
+.screen.active{display:flex}
+.screen-inner{padding:0 16px 20px;flex:1}
+
+/* ONBOARDING */
+#onboarding{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 28px;max-width:480px;margin:0 auto}
+#onboarding.hidden{display:none}
+.ob-orb{width:80px;height:80px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff2,var(--surface));box-shadow:0 0 40px rgba(139,123,171,.5),0 0 80px rgba(139,123,171,.2);margin-bottom:32px;animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 40px rgba(139,123,171,.5),0 0 80px rgba(139,123,171,.2)}50%{box-shadow:0 0 60px rgba(139,123,171,.7),0 0 120px rgba(139,123,171,.3)}}
+.ob-title{font-family:'Cormorant Garamond',serif;font-size:36px;font-weight:300;color:var(--text);text-align:center;line-height:1.15;margin-bottom:12px}
+.ob-sub{font-size:14px;color:var(--text2);text-align:center;line-height:1.7;margin-bottom:40px;max-width:300px}
+.ob-step{width:100%;display:none}
+.ob-step.active{display:block}
+.ob-step-label{font-size:11px;color:var(--text3);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:20px;text-align:center}
+.ob-step-title{font-family:'Cormorant Garamond',serif;font-size:26px;font-weight:400;color:var(--text);margin-bottom:8px;text-align:center}
+.ob-step-hint{font-size:13px;color:var(--text2);margin-bottom:28px;text-align:center;line-height:1.6}
+.date-pickers{display:flex;gap:10px;margin-bottom:24px}
+.picker-col{flex:1;display:flex;flex-direction:column;gap:6px}
+.picker-col label{font-size:10px;color:var(--text3);font-weight:700;letter-spacing:1px;text-transform:uppercase;text-align:center}
+.picker-scroll{height:180px;overflow-y:auto;background:var(--surface);border:1.5px solid var(--border);border-radius:12px;scrollbar-width:none}
+.picker-scroll::-webkit-scrollbar{display:none}
+.picker-item{padding:10px 8px;text-align:center;cursor:pointer;font-size:14px;color:var(--text2);transition:all .15s;border-radius:8px;margin:2px 4px}
+.picker-item:hover{color:var(--text)}
+.picker-item.selected{background:var(--text);color:#0F0F14;font-weight:700}
+.cycle-grid{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:16px}
+.cycle-chip{width:52px;height:52px;border-radius:12px;background:var(--surface);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:var(--text2);transition:all .15s;font-family:'Inter',sans-serif;font-weight:500}
+.cycle-chip:hover{border-color:var(--text3);color:var(--text)}
+.cycle-chip.selected{background:var(--text);color:#0F0F14;border-color:var(--text);font-weight:700}
+.selected-cycle-len{font-size:13px;color:var(--text3);text-align:center;margin-bottom:24px}
+.btn-primary{width:100%;padding:16px;background:var(--text);color:#0F0F14;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;transition:opacity .2s;font-family:'Inter',sans-serif}
+.btn-primary:hover{opacity:.9}
+.btn-primary:disabled{opacity:.4;cursor:default}
+.ob-features{display:flex;flex-direction:column;gap:14px;margin-bottom:40px;width:100%}
+.ob-feature{display:flex;align-items:center;gap:14px}
+.ob-feat-icon{font-size:22px;width:36px;text-align:center}
+.ob-feat-text{font-size:14px;color:var(--text2);line-height:1.5}
+
+/* PHASE ORB */
+.phase-orb-wrap{position:relative;display:flex;justify-content:center;padding:28px 0 20px}
+.phase-orb{width:100px;height:100px;border-radius:50%;transition:all .8s cubic-bezier(.4,0,.2,1);position:relative;display:flex;align-items:center;justify-content:center}
+.phase-orb::before{content:'';position:absolute;inset:0;border-radius:50%;transition:all .8s}
+.phase-orb-emoji{font-size:40px;position:relative;z-index:1;filter:drop-shadow(0 0 12px rgba(255,255,255,.3))}
+.menstrual-orb{background:radial-gradient(circle at 40% 35%,#d4897d,#7a2d24);box-shadow:0 0 50px var(--menstrual-glow),0 0 100px rgba(194,103,90,.1)}
+.follicular-orb{background:radial-gradient(circle at 40% 35%,#8eb8d9,#2d5a7a);box-shadow:0 0 50px var(--follicular-glow),0 0 100px rgba(106,143,175,.1)}
+.ovulatory-orb{background:radial-gradient(circle at 35% 30%,#f0cc7a,#8a6010);box-shadow:0 0 70px var(--ovulatory-glow),0 0 120px rgba(212,168,75,.15);transform:scale(1.05)}
+.luteal-orb{background:radial-gradient(circle at 40% 35%,#b09acc,#4a3870);box-shadow:0 0 50px var(--luteal-glow),0 0 100px rgba(139,123,171,.1)}
+
+/* PHASE HEADER */
+.phase-header{text-align:center;padding:0 8px 24px}
+.phase-eyebrow{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--phase-color);margin-bottom:6px}
+.phase-name{font-family:'Cormorant Garamond',serif;font-size:32px;font-weight:300;color:var(--text);margin-bottom:6px;line-height:1.1}
+.phase-tagline{font-size:13px;color:var(--text2)}
+
+/* PROGRESS BAR */
+.progress-section{padding:0 4px 24px}
+.progress-label-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.progress-label{font-size:12px;color:var(--text2)}
+.progress-day{font-size:13px;font-weight:600;color:var(--phase-color)}
+.progress-track{height:6px;background:var(--surface2);border-radius:3px;position:relative;overflow:visible}
+.progress-fill{height:6px;border-radius:3px;transition:width .8s cubic-bezier(.4,0,.2,1);position:relative}
+.progress-fill::after{content:'';position:absolute;right:-5px;top:-3px;width:12px;height:12px;border-radius:50%;background:currentColor;border:2px solid var(--bg);box-shadow:0 0 8px currentColor}
+.progress-phases{display:flex;justify-content:space-between;margin-top:8px}
+.progress-phase-label{font-size:9px;color:var(--text3);font-weight:500}
+
+/* CARDS */
+.card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;inset:0;background:linear-gradient(135deg,var(--phase-glow),transparent 60%);pointer-events:none;border-radius:inherit}
+.card-label{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--phase-color);margin-bottom:10px}
+.card-body{font-size:14px;color:var(--text2);line-height:1.75}
+.card-body strong{color:var(--text);font-weight:600}
+
+/* NEXT PERIOD */
+.next-period-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+.np-left-label{font-size:11px;color:var(--text3);font-weight:500;margin-bottom:4px}
+.np-days{font-family:'Cormorant Garamond',serif;font-size:38px;font-weight:300;color:var(--text);line-height:1}
+.np-days-unit{font-size:14px;color:var(--text2);margin-left:4px}
+.np-right{text-align:right}
+.np-date-label{font-size:10px;color:var(--text3);margin-bottom:4px;font-weight:500}
+.np-date{font-size:14px;color:var(--text);font-weight:500}
+.np-phase-coming{font-size:11px;color:var(--phase-color);margin-top:4px}
+
+/* SYMPTOMS */
+.symptoms-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.symptom-chip{padding:5px 12px;border:1px solid;border-radius:20px;font-size:12px;font-weight:500;background:transparent}
+
+/* FOCUS BANNER */
+.focus-banner{background:var(--phase-color);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.focus-eyebrow{font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(0,0,0,.5);margin-bottom:6px}
+.focus-text{font-size:16px;font-weight:600;color:#0F0F14;line-height:1.5}
+
+/* SUGGESTIONS */
+.suggestion-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:12px}
+.sug-header{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.sug-icon{font-size:22px}
+.sug-meta{flex:1}
+.sug-role{font-size:14px;font-weight:700;color:var(--text)}
+.sug-sub{font-size:11px;color:var(--text3);margin-top:1px}
+.copy-btn{padding:5px 14px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif;white-space:nowrap}
+.copy-btn:hover{border-color:var(--text3)}
+.copy-btn.copied{background:var(--phase-color);color:#0F0F14;border-color:var(--phase-color)}
+.sug-quote{font-size:14.5px;color:var(--text2);line-height:1.7;font-style:italic}
+
+/* GESTURE */
+.gesture-card{border:1.5px solid var(--phase-color);border-radius:var(--radius);padding:18px;margin-bottom:14px;background:transparent}
+.gesture-title{font-size:14px;font-weight:700;color:var(--text);margin-bottom:8px}
+.gesture-text{font-size:14px;color:var(--text2);line-height:1.7}
+
+/* AVOID */
+.avoid-card{background:rgba(255,80,80,.05);border:1.5px solid rgba(255,80,80,.15);border-radius:var(--radius);padding:18px;margin-bottom:14px}
+.avoid-title{font-size:14px;font-weight:700;color:#e07070;margin-bottom:10px}
+.avoid-row{display:flex;gap:8px;margin-bottom:6px;align-items:flex-start}
+.avoid-dot{color:#e07070;line-height:22px}
+.avoid-text{font-size:14px;color:var(--text2);line-height:1.6}
+
+/* PHASE MAP */
+.phase-map{display:flex;gap:8px;margin-bottom:28px}
+.mini-phase{flex:1;border-radius:12px;padding:10px 6px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surface);border:1.5px solid var(--border)}
+.mini-phase.active{border-color:var(--phase-color)}
+.mini-phase-emoji{font-size:18px;display:block;margin-bottom:4px}
+.mini-phase-name{font-size:9px;font-weight:700;color:var(--text2);display:block}
+.mini-phase-days{font-size:8px;color:var(--text3);display:block;margin-top:2px}
+
+/* CHAT */
+.chat-messages{flex:1;overflow-y:auto;padding:16px 16px 8px;display:flex;flex-direction:column;gap:12px;-webkit-overflow-scrolling:touch}
+.chat-msg-user{align-self:flex-end;background:var(--text);color:#0F0F14;border-radius:18px 18px 4px 18px;padding:12px 16px;max-width:78%;font-size:14.5px;line-height:1.6}
+.chat-msg-ai{align-self:flex-start;display:flex;gap:8px;max-width:82%;align-items:flex-end}
+.ai-avatar{width:30px;height:30px;border-radius:50%;background:var(--phase-color);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.ai-bubble{background:var(--surface);border:1.5px solid var(--border);border-radius:18px 18px 18px 4px;padding:12px 16px;font-size:14.5px;line-height:1.7;color:var(--text2)}
+.typing-indicator{display:flex;gap:5px;align-items:center;padding:4px 0}
+.typing-dot{width:7px;height:7px;border-radius:50%;background:var(--text3);animation:typingBounce 1.3s ease-in-out infinite}
+.typing-dot:nth-child(2){animation-delay:.15s}
+.typing-dot:nth-child(3){animation-delay:.3s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-7px)}}
+.chat-input-area{padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--surface);border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;flex-shrink:0}
+.chat-input{flex:1;background:var(--surface2);border:1.5px solid var(--border);border-radius:16px;padding:10px 14px;font-size:14.5px;color:var(--text);font-family:'Inter',sans-serif;resize:none;max-height:100px;outline:none;line-height:1.5;transition:border-color .2s}
+.chat-input:focus{border-color:var(--text3)}
+.chat-input::placeholder{color:var(--text3)}
+.send-btn{width:44px;height:44px;border-radius:22px;background:var(--phase-color);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:opacity .2s}
+.send-btn:disabled{opacity:.35;cursor:default}
+.send-btn svg{width:20px;height:20px;fill:none;stroke:#0F0F14;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.quick-questions{padding:8px 16px;display:flex;flex-direction:column;gap:8px;flex-shrink:0}
+.quick-q-label{font-size:11px;color:var(--text3);font-weight:600;letter-spacing:.5px}
+.quick-q-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:12px;padding:10px 14px;font-size:13.5px;color:var(--text2);text-align:left;cursor:pointer;transition:border-color .2s;font-family:'Inter',sans-serif}
+.quick-q-btn:hover{border-color:var(--text3);color:var(--text)}
+
+/* SETTINGS */
+.settings-header{padding:20px 16px 0;display:flex;align-items:center;gap:12px;margin-bottom:24px}
+.settings-title{font-family:'Cormorant Garamond',serif;font-size:28px;font-weight:300;color:var(--text)}
+.settings-section{margin-bottom:28px;padding:0 4px}
+.settings-section-title{font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;padding:0 4px}
+.settings-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;margin-bottom:10px}
+.settings-row{display:flex;align-items:center;justify-content:space-between}
+.settings-row-value{font-size:15px;color:var(--text);font-weight:500}
+.settings-edit-btn{padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s}
+.settings-edit-btn:hover{border-color:var(--text3);color:var(--text)}
+.settings-cycle-grid{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.settings-cycle-chip{width:48px;height:48px;border-radius:10px;background:var(--surface2);border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:var(--text2);transition:all .15s;font-family:'Inter',sans-serif;font-weight:500}
+.settings-cycle-chip.selected{background:var(--text);color:#0F0F14;border-color:var(--text);font-weight:700}
+.privacy-card{background:rgba(106,143,175,.08);border:1.5px solid rgba(106,143,175,.2);border-radius:var(--radius);padding:18px;font-size:13.5px;color:var(--text2);line-height:1.75}
+.about-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;font-size:13.5px;color:var(--text2);line-height:1.75}
+.reset-btn{width:100%;padding:15px;background:rgba(192,57,43,.1);border:1.5px solid rgba(192,57,43,.3);border-radius:14px;color:#e07070;font-size:15px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif;transition:all .2s;margin-bottom:4px}
+.reset-btn:hover{background:rgba(192,57,43,.18)}
+.section-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px;padding:0 4px}
+.section-sub{font-size:13px;color:var(--text3);margin-bottom:14px;padding:0 4px}
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:#0F0F14;padding:10px 20px;border-radius:10px;font-size:14px;font-weight:600;z-index:999;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+.note-card{background:rgba(212,168,75,.08);border:1.5px solid rgba(212,168,75,.2);border-radius:var(--radius);padding:14px;margin-bottom:14px;font-size:13px;color:#c9a050;line-height:1.65}
+.inline-date-editor{margin-top:14px}
+.inline-date-editor .date-pickers{margin-bottom:12px}
+.inline-edit-actions{display:flex;gap:10px}
+.btn-cancel{flex:1;padding:12px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.btn-save{flex:2;padding:12px;background:var(--text);border:none;border-radius:12px;color:#0F0F14;font-size:14px;font-weight:700;cursor:pointer;font-family:'Inter',sans-serif}
+.chat-phase-bar{padding:10px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-shrink:0}
+.cpb-dot{width:8px;height:8px;border-radius:50%;background:var(--phase-color)}
+.cpb-text{font-size:13px;color:var(--text2)}
+.cpb-phase{color:var(--phase-color);font-weight:600}
+.ob-privacy{font-size:11px;color:var(--text3);text-align:center;margin-top:16px;line-height:1.6}
+</style>
+</head>
+<body>
+
+<!-- ONBOARDING -->
+<div id="onboarding">
+  <!-- Step 0: Welcome -->
+  <div class="ob-step active" id="ob-step-0">
+    <div class="ob-orb"></div>
+    <h1 class="ob-title">Relationship<br/>Support</h1>
+    <p class="ob-sub">Know when to comfort, when to give space, and exactly what to say — every day of her cycle.</p>
+    <div class="ob-features">
+      <div class="ob-feature"><span class="ob-feat-icon">🌿</span><span class="ob-feat-text">Automatically tracks her cycle phase from a single date</span></div>
+      <div class="ob-feature"><span class="ob-feat-icon">💬</span><span class="ob-feat-text">Gives you the right words at the right moment</span></div>
+      <div class="ob-feature"><span class="ob-feat-icon">💛</span><span class="ob-feat-text">Suggests small gestures with real impact</span></div>
+      <div class="ob-feature"><span class="ob-feat-icon">🔒</span><span class="ob-feat-text">All data stays on your device. Nothing is shared.</span></div>
+    </div>
+    <button class="btn-primary" onclick="obNext()">Get Started</button>
+  </div>
+
+  <!-- Step 1: Period Date -->
+  <div class="ob-step" id="ob-step-1">
+    <p class="ob-step-label">Step 1 of 2</p>
+    <h2 class="ob-step-title">When did her last<br/>period start?</h2>
+    <p class="ob-step-hint">You only enter this once. We'll predict her cycle from here.</p>
+    <div class="date-pickers" id="ob-date-pickers">
+      <div class="picker-col">
+        <label>Month</label>
+        <div class="picker-scroll" id="ob-month-picker"></div>
+      </div>
+      <div class="picker-col" style="max-width:72px">
+        <label>Day</label>
+        <div class="picker-scroll" id="ob-day-picker"></div>
+      </div>
+      <div class="picker-col" style="max-width:84px">
+        <label>Year</label>
+        <div class="picker-scroll" id="ob-year-picker"></div>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="obNext()">Next →</button>
+    <p class="ob-privacy">🔒 Stored only on this device</p>
+  </div>
+
+  <!-- Step 2: Cycle Length -->
+  <div class="ob-step" id="ob-step-2">
+    <p class="ob-step-label">Step 2 of 2</p>
+    <h2 class="ob-step-title">Average cycle length?</h2>
+    <p class="ob-step-hint">If unsure, 28 is a safe default. You can update this anytime.</p>
+    <div class="cycle-grid" id="ob-cycle-grid"></div>
+    <p class="selected-cycle-len" id="ob-cycle-selected">28 days selected</p>
+    <button class="btn-primary" onclick="obFinish()">Start Supporting Her 💛</button>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <!-- HOME -->
+  <div class="screen active" id="screen-home">
+    <div class="screen-inner" id="home-content">
+      <!-- populated by JS -->
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div class="screen" id="screen-chat" style="overflow:hidden">
+    <div class="chat-phase-bar">
+      <div class="cpb-dot"></div>
+      <span class="cpb-text">Chatting about: <span class="cpb-phase" id="chat-phase-label">–</span></span>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div class="quick-questions" id="quick-questions">
+      <p class="quick-q-label">Quick questions</p>
+      <button class="quick-q-btn" onclick="useQuick(this)">She seems irritable today — how should I respond?</button>
+      <button class="quick-q-btn" onclick="useQuick(this)">What's the best thing I can do for her right now?</button>
+      <button class="quick-q-btn" onclick="useQuick(this)">She wants space — how do I show I care without crowding her?</button>
+      <button class="quick-q-btn" onclick="useQuick(this)">What small gesture would mean the most today?</button>
+    </div>
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chat-input" rows="1" placeholder="Ask anything about supporting her..." oninput="autoResize(this)" onkeydown="chatKeydown(event)"></textarea>
+      <button class="send-btn" id="send-btn" onclick="sendChat()" disabled>
+        <svg viewBox="0 0 24 24"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="screen-settings">
+    <div class="screen-inner">
+      <div class="settings-header">
+        <div>
+          <h2 class="settings-title">Settings</h2>
+        </div>
+      </div>
+      <div id="settings-content"><!-- populated by JS --></div>
+    </div>
+  </div>
+
+  <!-- NAV -->
+  <nav>
+    <button class="nav-btn active" data-screen="home" onclick="showScreen('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      <span class="nav-label">Today</span>
+    </button>
+    <button class="nav-btn" data-screen="chat" onclick="showScreen('chat')">
+      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="nav-label">Ask</span>
+    </button>
+    <button class="nav-btn" data-screen="settings" onclick="showScreen('settings')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <span class="nav-label">Settings</span>
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+
+  // API key injected by server at load time
+  window.ANTHROPIC_KEY = '{{ANTHROPIC_KEY}}';// =========================================================
+// DATA
+// =========================================================
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+const PHASES = {
+  menstrual:{key:'menstrual',name:'Menstrual Phase',emoji:'🌑',tagline:'Rest & Comfort',color:'#C2675A',bgClass:'menstrual-orb',cssVar:'--menstrual',daysRange:[1,5],description:'Hormone levels are at their lowest right now. Her body is working hard, and energy reserves are naturally depleted — rest and warmth go further than you might expect.',focus:'rest, comfort, and quiet presence',symptoms:['Fatigue','Cramps','Low energy','Mood dips']},
+  follicular:{key:'follicular',name:'Follicular Phase',emoji:'🌒',tagline:'Energy & Optimism',color:'#6A8FAF',bgClass:'follicular-orb',cssVar:'--follicular',daysRange:[6,13],description:'Estrogen is rising, which often brings a noticeable lift in mood, motivation, and curiosity. Energy tends to be higher and optimism more available than it was last week.',focus:'encouragement, planning, and shared adventures',symptoms:['Higher energy','Optimism','Creativity','Social openness']},
+  ovulatory:{key:'ovulatory',name:'Ovulatory Phase',emoji:'🌕',tagline:'Connection & Warmth',color:'#D4A84B',bgClass:'ovulatory-orb',cssVar:'--ovulatory',daysRange:[14,16],description:'Estrogen peaks and there\'s a brief testosterone surge. Warmth, confidence, and a strong desire for closeness and connection are often highest during this window.',focus:'companionship, quality time, and meaningful moments',symptoms:['Warmth','High confidence','Social energy','Intimacy']},
+  luteal:{key:'luteal',name:'Luteal Phase',emoji:'🌖',tagline:'Patience & Validation',color:'#8B7BAB',bgClass:'luteal-orb',cssVar:'--luteal',daysRange:[17,28],description:'Progesterone rises then both hormones drop sharply. This shift often brings irritability, fatigue, bloating, and heightened emotional sensitivity — all real physical responses, not moods.',focus:'patience, validation, and reducing her mental load',symptoms:['Irritability','Bloating','Fatigue','Sensitivity']}
+};
+
+const SUGGESTIONS = {
+  menstrual:{listener:'"I know your body is doing a lot right now. I\'m not going anywhere — I\'m right here with you. What do you need most?"',helper:'"I\'ve handled everything for tonight — your only job is to rest. I\'ve genuinely got it all."',distractor:'"I found the most comforting thing to watch. Blanket fort optional but strongly encouraged. You in?"',gesture:'Quietly prepare a hot water bottle or heating pad and leave it beside her without making a big deal of it.',avoid:['Pushing plans or social activities','Minimising how she feels','Expecting high energy or enthusiasm']},
+  follicular:{listener:'"You seem like you\'re in a really good headspace lately — I love hearing your ideas. What\'s been on your mind?"',helper:'"You mentioned wanting to start [that project/trip/habit]. Want to actually plan it together this week?"',distractor:'"Let\'s do something a little spontaneous — I\'m open to whatever sounds exciting to you right now."',gesture:'Suggest a small adventure together — a new restaurant, a day trip, something she\'s been wanting to try.',avoid:['Dismissing her energy or enthusiasm','Cancelling plans you\'ve made','Being emotionally unavailable']},
+  ovulatory:{listener:'"I genuinely love the time we spend together. I just want you to know I see you, and I\'m really happy you\'re in my life."',helper:'"Is there anyone you\'ve been wanting to catch up with? I\'ll handle all the logistics — you just show up."',distractor:'"Let\'s make tonight a proper date night — just us, no phones, the full thing."',gesture:'Plan something intentional — dress up together, make a reservation, or create a shared moment that feels special.',avoid:['Being distant or distracted around her','Skipping on quality time','Cancelling plans last minute']},
+  luteal:{listener:'"Your feelings make complete sense, and you don\'t have to justify them to me. I\'m listening — take all the time you need."',helper:'"I noticed [that thing on your list]. I\'ll take care of it — you genuinely don\'t need to think about it."',distractor:'"No pressure at all, but I have snacks, your favourite comfort show, and zero agenda. Want company?"',gesture:'Quietly handle one task she finds draining — laundry, dishes, groceries — without announcing you did it.',avoid:['Taking irritability personally','Starting or escalating arguments','Adding more to her mental load']}
+};
+
+// =========================================================
+// STATE
+// =========================================================
+let state = {
+  lastPeriodDate: null,
+  cycleLength: 28,
+  chatMessages: [],
+  isLoading: false
+};
+
+let ob = {
+  step: 0,
+  selMonth: new Date().getMonth(),
+  selDay: new Date().getDate(),
+  selYear: new Date().getFullYear(),
+  cycleLength: 28
+};
+
+// =========================================================
+// STORAGE
+// =========================================================
+function saveState(){
+  localStorage.setItem('cs_lastPeriod', state.lastPeriodDate || '');
+  localStorage.setItem('cs_cycleLength', String(state.cycleLength));
+}
+function loadState(){
+  const lp = localStorage.getItem('cs_lastPeriod');
+  const cl = localStorage.getItem('cs_cycleLength');
+  if(lp) state.lastPeriodDate = lp;
+  if(cl) state.cycleLength = parseInt(cl)||28;
+}
+
+// =========================================================
+// CYCLE LOGIC
+// =========================================================
+function getPhaseKey(day, cycleLen){
+  const s = cycleLen/28;
+  if(day<=Math.round(5*s)) return 'menstrual';
+  if(day<=Math.round(13*s)) return 'follicular';
+  if(day<=Math.round(16*s)) return 'ovulatory';
+  return 'luteal';
+}
+function getCycleInfo(){
+  if(!state.lastPeriodDate) return null;
+  const start = new Date(state.lastPeriodDate);
+  start.setHours(0,0,0,0);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = Math.floor((today-start)/(86400000));
+  const cycleDay = (diff % state.cycleLength)+1;
+  const phaseKey = getPhaseKey(cycleDay, state.cycleLength);
+  return {cycleDay, phaseKey};
+}
+function getNextPeriod(){
+  if(!state.lastPeriodDate) return null;
+  const start = new Date(state.lastPeriodDate);
+  const today = new Date(); today.setHours(0,0,0,0);
+  start.setHours(0,0,0,0);
+  const diff = Math.floor((today-start)/86400000);
+  const passed = Math.floor(diff/state.cycleLength);
+  const next = new Date(start);
+  next.setDate(start.getDate()+(passed+1)*state.cycleLength);
+  return next;
+}
+function getDaysUntil(date){
+  const today = new Date(); today.setHours(0,0,0,0);
+  return Math.ceil((date-today)/86400000);
+}
+function formatDate(d){
+  return new Date(d).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+}
+
+// =========================================================
+// CSS PHASE VARIABLE
+// =========================================================
+function applyPhaseVars(phaseKey){
+  const p = PHASES[phaseKey];
+  document.documentElement.style.setProperty('--phase-color', p.color);
+  const glowMap={menstrual:'rgba(194,103,90,0.25)',follicular:'rgba(106,143,175,0.25)',ovulatory:'rgba(212,168,75,0.25)',luteal:'rgba(139,123,171,0.25)'};
+  const bgMap={menstrual:'#1A100F',follicular:'#0E1318',ovulatory:'#1A1508',luteal:'#120F1A'};
+  document.documentElement.style.setProperty('--phase-glow', glowMap[phaseKey]);
+  document.documentElement.style.setProperty('--phase-bg', bgMap[phaseKey]);
+}
+
+// =========================================================
+// ONBOARDING
+// =========================================================
+function buildObPickers(){
+  const today = new Date();
+  // Months
+  const mp = document.getElementById('ob-month-picker');
+  MONTHS_FULL.forEach((m,i)=>{
+    const el=document.createElement('div');
+    el.className='picker-item'+(i===ob.selMonth?' selected':'');
+    el.textContent=m;
+    el.onclick=()=>{ob.selMonth=i; refreshObPickers(); updateObDays();};
+    mp.appendChild(el);
+  });
+  // Days
+  updateObDays();
+  // Years
+  const yp = document.getElementById('ob-year-picker');
+  for(let y=today.getFullYear();y>=today.getFullYear()-1;y--){
+    const el=document.createElement('div');
+    el.className='picker-item'+(y===ob.selYear?' selected':'');
+    el.textContent=y;
+    el.onclick=()=>{ob.selYear=y; refreshObPickers();};
+    yp.appendChild(el);
+  }
+  // Cycle grid
+  const cg = document.getElementById('ob-cycle-grid');
+  for(let l=21;l<=35;l++){
+    const el=document.createElement('div');
+    el.className='cycle-chip'+(l===ob.cycleLength?' selected':'');
+    el.textContent=l;
+    el.onclick=()=>{ob.cycleLength=l; refreshObCycle();};
+    cg.appendChild(el);
+  }
+  scrollPickerToSelected('ob-month-picker');
+  scrollPickerToSelected('ob-year-picker');
+}
+function updateObDays(){
+  const dp = document.getElementById('ob-day-picker');
+  const daysInMonth = new Date(ob.selYear, ob.selMonth+1, 0).getDate();
+  if(ob.selDay>daysInMonth) ob.selDay=daysInMonth;
+  dp.innerHTML='';
+  for(let d=1;d<=daysInMonth;d++){
+    const el=document.createElement('div');
+    el.className='picker-item'+(d===ob.selDay?' selected':'');
+    el.textContent=d;
+    el.onclick=()=>{ob.selDay=d; refreshObPickers();};
+    dp.appendChild(el);
+  }
+  scrollPickerToSelected('ob-day-picker');
+}
+function refreshObPickers(){
+  ['ob-month-picker','ob-day-picker','ob-year-picker'].forEach(id=>{
+    const c=document.getElementById(id);
+    if(!c) return;
+    c.querySelectorAll('.picker-item').forEach((el,i)=>{
+      const sel = id==='ob-month-picker'?i===ob.selMonth:id==='ob-year-picker'?parseInt(el.textContent)===ob.selYear:parseInt(el.textContent)===ob.selDay;
+      el.classList.toggle('selected',sel);
+    });
+  });
+}
+function scrollPickerToSelected(id){
+  setTimeout(()=>{
+    const c=document.getElementById(id);
+    if(!c) return;
+    const sel=c.querySelector('.selected');
+    if(sel) c.scrollTop=sel.offsetTop-c.clientHeight/2+sel.clientHeight/2;
+  },50);
+}
+function refreshObCycle(){
+  document.querySelectorAll('.cycle-chip').forEach(el=>{
+    el.classList.toggle('selected',parseInt(el.textContent)===ob.cycleLength);
+  });
+  document.getElementById('ob-cycle-selected').textContent=ob.cycleLength+' days selected';
+}
+function obNext(){
+  if(ob.step===0){
+    ob.step=1;
+    document.getElementById('ob-step-0').classList.remove('active');
+    document.getElementById('ob-step-1').classList.add('active');
+    buildObPickers();
+  } else if(ob.step===1){
+    const selDate=new Date(ob.selYear,ob.selMonth,ob.selDay);
+    if(selDate>new Date()){alert('Please select a date today or in the past.');return;}
+    ob.step=2;
+    document.getElementById('ob-step-1').classList.remove('active');
+    document.getElementById('ob-step-2').classList.add('active');
+  }
+}
+function obFinish(){
+  const date=new Date(ob.selYear,ob.selMonth,ob.selDay);
+  state.lastPeriodDate=date.toISOString();
+  state.cycleLength=ob.cycleLength;
+  saveState();
+  localStorage.setItem('cs_onboarded','1');
+  document.getElementById('onboarding').classList.add('hidden');
+  document.getElementById('app').style.display='flex';
+  initApp();
+}
+
+// =========================================================
+// HOME SCREEN
+// =========================================================
+function renderHome(){
+  const info = getCycleInfo();
+  if(!info){document.getElementById('home-content').innerHTML='<p style="color:var(--text2);padding:20px">No cycle data found.</p>';return;}
+  const {cycleDay,phaseKey}=info;
+  const phase=PHASES[phaseKey];
+  const sug=SUGGESTIONS[phaseKey];
+  const nextPeriod=getNextPeriod();
+  const daysUntil=getDaysUntil(nextPeriod);
+  applyPhaseVars(phaseKey);
+  const progress=Math.max(2,Math.min(98,((cycleDay-1)/(state.cycleLength-1))*100));
+  const isLate=cycleDay>=state.cycleLength-5;
+  const progressFillStyle=`width:${progress}%;background:${phase.color};color:${phase.color}`;
+  const symptomChips=phase.symptoms.map(s=>`<span class="symptom-chip" style="color:${phase.color};border-color:${phase.color}44">${s}</span>`).join('');
+  const miniPhases=Object.values(PHASES).map(p=>`<div class="mini-phase${p.key===phaseKey?' active':''}" title="${p.name}"><span class="mini-phase-emoji">${p.emoji}</span><span class="mini-phase-name">${p.name.split(' ')[0]}</span><span class="mini-phase-days">Days ${p.daysRange[0]}–${p.daysRange[1]}</span></div>`).join('');
+  const noteHTML=isLate?`<div class="note-card">⚕️ If she's experiencing severe pain or emotional distress that feels unusual, it's always worth encouraging a conversation with her healthcare provider — you know her best.</div>`:'';
+  document.getElementById('home-content').innerHTML=`
+    <div class="phase-orb-wrap">
+      <div class="phase-orb ${phase.bgClass}">
+        <span class="phase-orb-emoji">${phase.emoji}</span>
+      </div>
+    </div>
+    <div class="phase-header">
+      <p class="phase-eyebrow">${phase.tagline}</p>
+      <h1 class="phase-name">${phase.name}</h1>
+      <p class="phase-tagline">Day ${cycleDay} of ${state.cycleLength}</p>
+    </div>
+    <div class="progress-section">
+      <div class="progress-label-row">
+        <span class="progress-label">Cycle Progress</span>
+        <span class="progress-day">Day ${cycleDay} / ${state.cycleLength}</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" style="${progressFillStyle}"></div>
+      </div>
+      <div class="progress-phases">
+        <span class="progress-phase-label">🌑 Menstrual</span>
+        <span class="progress-phase-label">🌒 Follicular</span>
+        <span class="progress-phase-label">🌕 Ovulatory</span>
+        <span class="progress-phase-label">🌖 Luteal</span>
+      </div>
+    </div>
+    <div class="next-period-card">
+      <div>
+        <p class="np-left-label">Next period in</p>
+        <p class="np-days">${daysUntil<=0?'<1':`${daysUntil}`}<span class="np-days-unit"> ${daysUntil===1?'day':'days'}</span></p>
+      </div>
+      <div class="np-right">
+        <p class="np-date-label">EXPECTED</p>
+        <p class="np-date">${formatDate(nextPeriod)}</p>
+        <p class="np-phase-coming">🌑 Menstrual coming</p>
+      </div>
+    </div>
+    ${noteHTML}
+    <div class="card">
+      <p class="card-label">What's happening</p>
+      <p class="card-body">${phase.description}</p>
+      <div class="symptoms-row">${symptomChips}</div>
+    </div>
+    <div class="focus-banner">
+      <p class="focus-eyebrow">Your focus this phase</p>
+      <p class="focus-text">Focus on ${phase.focus}</p>
+    </div>
+    <p class="section-title">What to Say</p>
+    <p class="section-sub">Tap Copy to use directly. Adapt to your own voice.</p>
+    <div class="suggestion-card">
+      <div class="sug-header">
+        <span class="sug-icon">🫂</span>
+        <div class="sug-meta"><p class="sug-role">The Listener</p><p class="sug-sub">Validation-focused</p></div>
+        <button class="copy-btn" onclick="copyText(this,'${escQ(sug.listener)}')">Copy</button>
+      </div>
+      <p class="sug-quote">${sug.listener}</p>
+    </div>
+    <div class="suggestion-card">
+      <div class="sug-header">
+        <span class="sug-icon">🙌</span>
+        <div class="sug-meta"><p class="sug-role">The Helper</p><p class="sug-sub">Action & service</p></div>
+        <button class="copy-btn" onclick="copyText(this,'${escQ(sug.helper)}')">Copy</button>
+      </div>
+      <p class="sug-quote">${sug.helper}</p>
+    </div>
+    <div class="suggestion-card">
+      <div class="sug-header">
+        <span class="sug-icon">✨</span>
+        <div class="sug-meta"><p class="sug-role">The Distractor</p><p class="sug-sub">Lighthearted comfort</p></div>
+        <button class="copy-btn" onclick="copyText(this,'${escQ(sug.distractor)}')">Copy</button>
+      </div>
+      <p class="sug-quote">${sug.distractor}</p>
+    </div>
+    <div class="gesture-card" style="border-color:${phase.color}">
+      <p class="gesture-title">💛 Little Act of Love</p>
+      <p class="gesture-text">${sug.gesture}</p>
+    </div>
+    <div class="avoid-card">
+      <p class="avoid-title">🚫 What to Avoid Right Now</p>
+      ${sug.avoid.map(a=>`<div class="avoid-row"><span class="avoid-dot">·</span><p class="avoid-text">${a}</p></div>`).join('')}
+    </div>
+    <p class="section-title">Cycle Overview</p>
+    <div class="phase-map">${miniPhases}</div>
+  `;
+}
+
+function escQ(s){return s.replace(/'/g,"\\'").replace(/"/g,'&quot;');}
+
+function copyText(btn, text){
+  const clean=text.replace(/^"|"$/g,'').replace(/&quot;/g,'"');
+  navigator.clipboard.writeText(clean).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=clean;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+  });
+  btn.textContent='Copied ✓';
+  btn.classList.add('copied');
+  setTimeout(()=>{btn.textContent='Copy';btn.classList.remove('copied');},2000);
+}
+
+// =========================================================
+// CHAT SCREEN
+// =========================================================
+function renderChat(){
+  const info=getCycleInfo();
+  if(info){
+    applyPhaseVars(info.phaseKey);
+    document.getElementById('chat-phase-label').textContent=PHASES[info.phaseKey].name+' · Day '+info.cycleDay;
+  }
+  const msgs=document.getElementById('chat-messages');
+  if(state.chatMessages.length===0&&info){
+    const phase=PHASES[info.phaseKey];
+    addAIMessage(`Hi! She's currently in her ${phase.name} — Day ${info.cycleDay} of ${state.cycleLength}. ${phase.description.split('.')[0]}.\n\nI'm here to help you show up well. Ask me anything — how to handle a difficult moment, what to say, how to offer comfort, or what this phase might mean for her emotional needs.`);
+  }
+  const inputEl=document.getElementById('chat-input');
+  inputEl.addEventListener('input',()=>{
+    document.getElementById('send-btn').disabled=!inputEl.value.trim()||state.isLoading;
+  });
+}
+
+function addAIMessage(text){
+  const info=getCycleInfo();
+  const color=info?PHASES[info.phaseKey].color:'#8B7BAB';
+  const d=document.createElement('div');
+  d.className='chat-msg-ai';
+  d.innerHTML=`<div class="ai-avatar" style="background:${color}">🌿</div><div class="ai-bubble">${text.replace(/\n/g,'<br/>')}</div>`;
+  document.getElementById('chat-messages').appendChild(d);
+  document.getElementById('quick-questions').style.display='none';
+  d.scrollIntoView({behavior:'smooth',block:'end'});
+  state.chatMessages.push({role:'assistant',content:text});
+}
+function addUserMessage(text){
+  const d=document.createElement('div');
+  d.className='chat-msg-user';
+  d.textContent=text;
+  document.getElementById('chat-messages').appendChild(d);
+  d.scrollIntoView({behavior:'smooth',block:'end'});
+  state.chatMessages.push({role:'user',content:text});
+}
+function showTyping(){
+  const info=getCycleInfo();
+  const color=info?PHASES[info.phaseKey].color:'#8B7BAB';
+  const d=document.createElement('div');
+  d.className='chat-msg-ai';d.id='typing-indicator';
+  d.innerHTML=`<div class="ai-avatar" style="background:${color}">🌿</div><div class="ai-bubble"><div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>`;
+  document.getElementById('chat-messages').appendChild(d);
+  d.scrollIntoView({behavior:'smooth',block:'end'});
+}
+function removeTyping(){
+  const t=document.getElementById('typing-indicator');
+  if(t) t.remove();
+}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,100)+'px';}
+function chatKeydown(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
+function useQuick(btn){
+  document.getElementById('chat-input').value=btn.textContent.trim();
+  autoResize(document.getElementById('chat-input'));
+  document.getElementById('send-btn').disabled=false;
+  sendChat();
+}
+async function sendChat(){
+  const inp=document.getElementById('chat-input');
+  const text=inp.value.trim();
+  if(!text||state.isLoading) return;
+  inp.value='';inp.style.height='auto';
+  document.getElementById('send-btn').disabled=true;
+  state.isLoading=true;
+  addUserMessage(text);
+  showTyping();
+  const info=getCycleInfo();
+  const phase=info?PHASES[info.phaseKey]:null;
+  const systemPrompt=phase?`You are a warm, empathetic Relationship Support Assistant helping a partner support their significant other through the menstrual cycle.
+
+CURRENT CYCLE CONTEXT:
+- She is on Day ${info.cycleDay} of a ${state.cycleLength}-day cycle
+- Current phase: ${phase.name} (${phase.tagline})
+- Phase description: ${phase.description}
+- Recommended focus: ${phase.focus}
+
+YOUR GUIDELINES:
+1. Never say "she is acting this way because of her cycle." Frame insights as "Research suggests that during this phase, many people experience..."
+2. Never diagnose medical conditions. If severe symptoms are described, suggest a healthcare provider.
+3. Be warm, calm, non-prescriptive. Never condescending or dismissive of her feelings.
+4. Focus on empathy first, then practical suggestions.
+5. Keep responses concise — 2-4 short paragraphs. Conversational, not clinical.
+6. Suggest specific, small, actionable gestures whenever possible.
+7. Validate feelings while offering cycle-aware context when helpful.
+
+You are speaking to her partner who wants to support her well.`:'You are a warm relationship support assistant.';
+  const history=state.chatMessages.slice(-10).map(m=>({role:m.role,content:m.content}));
+  history[history.length-1]={role:'user',content:text};
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',     'x-api-key': window.ANTHROPIC_KEY || '',
+    'anthropic-version': '2023-06-01',
+    'anthropic-dangerous-direct-browser-access': 'true',},
+      body:JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,system:systemPrompt,messages:history})
+    });
+    const data=await res.json();
+    const reply=data.content?.map(c=>c.text||'').join('')||"I'm here to help — could you share a bit more?";
+    removeTyping();
+    addAIMessage(reply);
+  }catch(e){
+    removeTyping();
+    addAIMessage("I'm having trouble connecting right now. Please check your connection and try again.");
+  }
+  state.isLoading=false;
+  document.getElementById('send-btn').disabled=!inp.value.trim();
+}
+
+// =========================================================
+// SETTINGS
+// =========================================================
+let editingDate=false;
+let settOb={selMonth:new Date().getMonth(),selDay:new Date().getDate(),selYear:new Date().getFullYear()};
+function renderSettings(){
+  const info=getCycleInfo();
+  if(info) applyPhaseVars(info.phaseKey);
+  const phaseStatus=info?`<div class="card" style="margin-bottom:28px"><p class="card-label">Current Status</p><p style="font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:300;color:${PHASES[info.phaseKey].color};margin-bottom:4px">${PHASES[info.phaseKey].emoji} ${PHASES[info.phaseKey].name}</p><p style="font-size:14px;color:var(--text2)">Day ${info.cycleDay} of ${state.cycleLength}</p></div>`:'';
+  document.getElementById('settings-content').innerHTML=`
+    ${phaseStatus}
+    <div class="settings-section">
+      <p class="settings-section-title">Last Period Date</p>
+      <div class="settings-card">
+        <div class="settings-row">
+          <span class="settings-row-value">${state.lastPeriodDate?formatDate(state.lastPeriodDate):'Not set'}</span>
+          <button class="settings-edit-btn" onclick="toggleDateEdit()">Update</button>
+        </div>
+        <div id="settings-date-editor" style="display:none">
+          <div class="date-pickers" style="margin-top:14px" id="sett-date-pickers">
+            <div class="picker-col">
+              <label>Month</label>
+              <div class="picker-scroll" id="sett-month-picker"></div>
+            </div>
+            <div class="picker-col" style="max-width:72px">
+              <label>Day</label>
+              <div class="picker-scroll" id="sett-day-picker"></div>
+            </div>
+            <div class="picker-col" style="max-width:84px">
+              <label>Year</label>
+              <div class="picker-scroll" id="sett-year-picker"></div>
+            </div>
+          </div>
+          <div class="inline-edit-actions">
+            <button class="btn-cancel" onclick="toggleDateEdit()">Cancel</button>
+            <button class="btn-save" onclick="saveSettingsDate()">Save Date</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="settings-section">
+      <p class="settings-section-title">Cycle Length</p>
+      <div class="settings-card">
+        <p style="font-size:13px;color:var(--text2);margin-bottom:10px">Update if her cycle length changes. Tap to select.</p>
+        <div class="settings-cycle-grid" id="sett-cycle-grid"></div>
+        <p style="font-size:12px;color:var(--text3);text-align:center;margin-top:8px">Selected: ${state.cycleLength} days</p>
+      </div>
+    </div>
+    <div class="settings-section">
+      <p class="settings-section-title">Privacy</p>
+      <div class="privacy-card">🔒 All cycle data is stored exclusively in your browser's local storage. No data is ever sent to any server. The AI chat feature sends only your questions and the current cycle phase — no personal details — to Claude's API to generate responses.</div>
+    </div>
+    <div class="settings-section">
+      <p class="settings-section-title">About</p>
+      <div class="about-card">Cycle Support is designed to help partners show up with empathy and intention. It is not a medical tool and does not provide health advice. Always consult a healthcare provider for medical concerns.<br/><br/><span style="color:var(--text3)">Version 1.0.0</span></div>
+    </div>
+    <div class="settings-section">
+      <p class="settings-section-title">Data</p>
+      <button class="reset-btn" onclick="resetAll()">Reset All Data</button>
+    </div>
+  `;
+  buildSettCycleGrid();
+}
+function buildSettCycleGrid(){
+  const grid=document.getElementById('sett-cycle-grid');
+  if(!grid) return;
+  grid.innerHTML='';
+  for(let l=21;l<=35;l++){
+    const el=document.createElement('div');
+    el.className='settings-cycle-chip'+(l===state.cycleLength?' selected':'');
+    el.textContent=l;
+    el.onclick=()=>{
+      state.cycleLength=l;saveState();
+      document.querySelectorAll('.settings-cycle-chip').forEach(c=>c.classList.toggle('selected',parseInt(c.textContent)===l));
+      document.querySelector('#settings-content .settings-cycle-grid + p').textContent='Selected: '+l+' days';
+      renderHome();
+    };
+    grid.appendChild(el);
+  }
+}
+function toggleDateEdit(){
+  const ed=document.getElementById('settings-date-editor');
+  editingDate=!editingDate;
+  ed.style.display=editingDate?'block':'none';
+  if(editingDate){
+    if(state.lastPeriodDate){
+      const d=new Date(state.lastPeriodDate);
+      settOb.selMonth=d.getMonth();settOb.selDay=d.getDate();settOb.selYear=d.getFullYear();
+    }
+    buildSettPickers();
+  }
+}
+function buildSettPickers(){
+  const today=new Date();
+  const mp=document.getElementById('sett-month-picker');
+  mp.innerHTML='';
+  MONTHS_FULL.forEach((m,i)=>{
+    const el=document.createElement('div');
+    el.className='picker-item'+(i===settOb.selMonth?' selected':'');
+    el.textContent=m;
+    el.onclick=()=>{settOb.selMonth=i;refreshSettPickers();updateSettDays();};
+    mp.appendChild(el);
+  });
+  updateSettDays();
+  const yp=document.getElementById('sett-year-picker');
+  yp.innerHTML='';
+  for(let y=today.getFullYear();y>=today.getFullYear()-1;y--){
+    const el=document.createElement('div');
+    el.className='picker-item'+(y===settOb.selYear?' selected':'');
+    el.textContent=y;
+    el.onclick=()=>{settOb.selYear=y;refreshSettPickers();};
+    yp.appendChild(el);
+  }
+  setTimeout(()=>{
+    ['sett-month-picker','sett-day-picker','sett-year-picker'].forEach(id=>{
+      const c=document.getElementById(id);if(!c) return;
+      const sel=c.querySelector('.selected');
+      if(sel) c.scrollTop=sel.offsetTop-c.clientHeight/2+sel.clientHeight/2;
+    });
+  },50);
+}
+function updateSettDays(){
+  const dp=document.getElementById('sett-day-picker');
+  if(!dp) return;
+  const dim=new Date(settOb.selYear,settOb.selMonth+1,0).getDate();
+  if(settOb.selDay>dim) settOb.selDay=dim;
+  dp.innerHTML='';
+  for(let d=1;d<=dim;d++){
+    const el=document.createElement('div');
+    el.className='picker-item'+(d===settOb.selDay?' selected':'');
+    el.textContent=d;
+    el.onclick=()=>{settOb.selDay=d;refreshSettPickers();};
+    dp.appendChild(el);
+  }
+}
+function refreshSettPickers(){
+  ['sett-month-picker','sett-day-picker','sett-year-picker'].forEach(id=>{
+    const c=document.getElementById(id);if(!c) return;
+    c.querySelectorAll('.picker-item').forEach((el,i)=>{
+      const v=parseInt(el.textContent);
+      let sel=false;
+      if(id==='sett-month-picker') sel=i===settOb.selMonth;
+      else if(id==='sett-year-picker') sel=v===settOb.selYear;
+      else sel=v===settOb.selDay;
+      el.classList.toggle('selected',sel);
+    });
+  });
+}
+function saveSettingsDate(){
+  const d=new Date(settOb.selYear,settOb.selMonth,settOb.selDay);
+  if(d>new Date()){showToast('Please select a past date.');return;}
+  state.lastPeriodDate=d.toISOString();
+  saveState();
+  editingDate=false;
+  renderSettings();
+  renderHome();
+  showToast('Date updated ✓');
+}
+function resetAll(){
+  if(!confirm('Reset all data? This will restart the setup process.')) return;
+  localStorage.clear();
+  location.reload();
+}
+
+// =========================================================
+// NAV
+// =========================================================
+function showScreen(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('screen-'+name).classList.add('active');
+  document.querySelector(`[data-screen="${name}"]`).classList.add('active');
+  if(name==='home') renderHome();
+  else if(name==='chat') renderChat();
+  else if(name==='settings') renderSettings();
+}
+
+// =========================================================
+// TOAST
+// =========================================================
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+// =========================================================
+// INIT
+// =========================================================
+function initApp(){
+  const info=getCycleInfo();
+  if(info) applyPhaseVars(info.phaseKey);
+  renderHome();
+}
+function init(){
+  loadState();
+  const onboarded=localStorage.getItem('cs_onboarded');
+  if(onboarded&&state.lastPeriodDate){
+    document.getElementById('onboarding').classList.add('hidden');
+    document.getElementById('app').style.display='flex';
+    initApp();
+  }
+}
+init();
+</script>
+</body>
+</html>
